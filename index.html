@@ -57,11 +57,11 @@
       <div class="flex flex-wrap gap-4 items-center">
         <div>
           <label class="text-gray-400 text-sm">Gap Mínimo (%):</label>
-          <input type="number" id="min-gap" value="2" step="0.5" min="0.5" max="20" class="bg-dark-800 border border-gray-700 rounded px-3 py-2 text-white w-24 ml-2">
+          <input type="number" id="min-gap" value="0.5" step="0.1" min="0.1" max="20" class="bg-dark-800 border border-gray-700 rounded px-3 py-2 text-white w-24 ml-2">
         </div>
         <div>
           <label class="text-gray-400 text-sm">Volume Mínimo ($):</label>
-          <input type="number" id="min-volume" value="10000" step="1000" min="0" class="bg-dark-800 border border-gray-700 rounded px-3 py-2 text-white w-32 ml-2">
+          <input type="number" id="min-volume" value="0" step="1000" min="0" class="bg-dark-800 border border-gray-700 rounded px-3 py-2 text-white w-32 ml-2">
         </div>
         <div>
           <label class="text-gray-400 text-sm">Tempo Restante:</label>
@@ -133,9 +133,9 @@
     
     // Determine arbitrage signal
     function getArbSignal(prices, gapPercent) {
-      if (gapPercent < 2) return { label: '→ SEM GAP', class: 'badge-neutral', action: 'Nenhuma' };
+      if (gapPercent < 0.5) return { label: '→ SEM GAP', class: 'badge-neutral', action: 'Nenhuma' };
       
-      if (prices.total < 0.98) {
+      if (prices.total < 0.99) {
         // Sum < 1: both contracts underpriced collectively - buy both (YES and NO)
         return { 
           label: '🟣 COMPRAR AMBAS', 
@@ -143,7 +143,7 @@
           action: 'Comprar YES e NO (arbitragem de soma < 1)',
           reason: `Total ${prices.total.toFixed(3)} < 1.0 - desconto coletivo`
         };
-      } else if (prices.total > 1.02) {
+      } else if (prices.total > 1.01) {
         // Sum > 1: both contracts overpriced collectively - sell both
         return { 
           label: '🔴 VENDER AMBAS', 
