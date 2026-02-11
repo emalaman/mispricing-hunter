@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🕵️ Polymarket Mispricing Hunter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', sans-serif; }
+    .card { background: #121212; border: 1px solid #333; border-radius: 0.75rem; padding: 1.5rem; transition: all .2s; }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(0,0,0,.4); border-color: #7c3aed; }
+    .badge { font-size: .75rem; padding: .25rem .75rem; border-radius: 999px; font-weight: 700; text-transform: uppercase; }
+    .badge-arb { background: rgba(124, 58, 237, 0.2); color: #a78bfa; }
+    .badge-neutral { background: rgba(156, 163, 175, 0.2); color: #9ca3af; }
+    .text-green { color: #22c55e; }
+    .text-red { color: #ef4444; }
+    .text-purple { color: #a78bfa; }
+    .pulse { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+    .refresh-indicator { position: fixed; top: 1rem; right: 1rem; font-size: .75rem; color: #6b7280; background: rgba(0,0,0,.5); padding: .25rem .75rem; border-radius: .5rem; }
+    .arb-line { height: 4px; background: linear-gradient(90deg, #22c55e, #a78bfa); border-radius: 2px; margin: 0.5rem 0; }
+    .stat-card { background: #1a1a1a; border: 1px solid #333; border-radius: 0.5rem; padding: 1rem; text-align: center; }
+    .stat-value { font-size: 1.5rem; font-weight: 800; color: #a78bfa; }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+  <div class="max-w-7xl mx-auto">
+    <header class="mb-10 text-center">
+      <h1 class="text-4xl font-bold text-white mb-2">🕵️ Polymarket Mispricing Hunter</h1>
+      <p class="text-gray-400 text-lg">Caça a Desprecificações Temporárias - Arbitragem Estatística</p>
+      <div class="refresh-indicator" id="status">🔄 Atualizando...</div>
+    </header>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" id="stats">
+      <div class="stat-card">
+        <div class="text-gray-400 text-xs uppercase">Total Monitorados</div>
+        <div class="stat-value" id="total-markets">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="text-gray-400 text-xs uppercase">Oportunidades</div>
+        <div class="stat-value text-green" id="total-arb">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="text-gray-400 text-xs uppercase">Média de Gap</div>
+        <div class="stat-value" id="avg-gap">0%</div>
+      </div>
+      <div class="stat-card">
+        <div class="text-gray-400 text-xs uppercase">Melhor Oportunidade</div>
+        <div class="stat-value text-purple" id="best-arb">0%</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-8">
+      <h2 class="text-xl font-bold text-white mb-4">🎛️ Filtros</h2>
+      <div class="flex flex-wrap gap-4 items-center">
+        <div>
+          <label class="text-gray-400 text-sm">Gap Mínimo (%):</label>
+          <input type="number" id="min-gap" value="2" step="0.5" min="0.5" max="20" class="bg-dark-800 border border-gray-700 rounded px-3 py-2 text-white w-24 ml-2">
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm">Volume Mínimo ($):</label>
+          <input type="number" id="min-volume" value="10000" step="1000" min="0" class="bg-dark-800 border border-gray-700 rounded px-3 py-2 text-white w-32 ml-2">
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm">Tempo Restante:</label>
+          <select id="time-filter" class="bg-dark-800 border border-gray-700 rounded px-3 py-2 text-white ml-2">
+            <option value="all">Todos</option>
+            <option value="24h">Últimas 24h</option>
+            <option value="7d">Últimos 7 dias</option>
+            <option value="30d">Últimos 30 dias</option>
+          </select>
+        </div>
+        <button onclick="applyFilters()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-semibold">Aplicar</button>
+        <div class="text-gray-500 text-sm ml-auto">Atualização automática a cada 15 segundos</div>
+      </div>
+    </div>
+
+    <!-- Oportunidades -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8" id="cards"></div>
+
+    <!-- Tabela Completa -->
+    <div class="card">
+      <h2 class="text-xl font-bold text-white mb-4">📋 Todos os Mercados com Desprecificação</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-gray-800 text-gray-400 text-sm">
+              <th class="py-3 px-4">Mercado</th>
+              <th class="py-3 px-4 text-right">YES</th>
+              <th class="py-3 px-4 text-right">NO</th>
+              <th class="py-3 px-4 text-right">Total</th>
+              <th class="py-3 px-4 text-right">Gap</th>
+              <th class="py-3 px-4 text-right">Volume</th>
+              <th class="py-3 px-4 text-center">Sinal</th>
+              <th class="py-3 px-4">Link</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer class="mt-8 text-center text-gray-500 text-sm border-t border-gray-800 pt-4">
+      <p>Dados da Gamma API (pública). Atualização automática a cada 15 segundos.</p>
+      <p class="mt-1">⚠️ Esta estratégia identifica ineficiências temporárias. Opere com cautela!</p>
+    </footer>
+  </div>
+
+  <script>
+    const API_URL = 'https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=500';
+    
+    // Parse prices safely
+    function parsePrices(market) {
+      let prices = market.outcomePrices;
+      if (typeof prices === 'string') {
+        try { prices = JSON.parse(prices); } catch (e) { return null; }
+      }
+      if (!prices || prices.length < 2) return null;
+      return {
+        yes: parseFloat(prices[0]) || 0,
+        no: parseFloat(prices[1]) || 0,
+        total: parseFloat(prices[0]) + parseFloat(prices[1])
+      };
+    }
+    
+    // Calculate mispricing gap (deviation from 1.0)
+    function calculateGap(prices) {
+      // Gap = |(yes + no) - 1.0| * 100
+      return Math.abs(prices.total - 1.0) * 100;
+    }
+    
+    // Determine arbitrage signal
+    function getArbSignal(prices, gapPercent) {
+      if (gapPercent < 2) return { label: '→ SEM GAP', class: 'badge-neutral', action: 'Nenhuma' };
+      
+      if (prices.total < 0.98) {
+        // Sum < 1: both contracts underpriced collectively - buy both (YES and NO)
+        return { 
+          label: '🟣 COMPRAR AMBAS', 
+          class: 'badge-arb',
+          action: 'Comprar YES e NO (arbitragem de soma < 1)',
+          reason: `Total ${prices.total.toFixed(3)} < 1.0 - desconto coletivo`
+        };
+      } else if (prices.total > 1.02) {
+        // Sum > 1: both contracts overpriced collectively - sell both
+        return { 
+          label: '🔴 VENDER AMBAS', 
+          class: 'badge-arb',
+          action: 'Vender YES e NO (arbitragem de soma > 1)',
+          reason: `Total ${prices.total.toFixed(3)} > 1.0 - sobrepreço coletivo`
+        };
+      }
+      return { label: '⚠️ GAP PEQUENO', class: 'badge-neutral', action: 'Observar' };
+    }
+    
+    // Format price
+    function fmt(p) { return p ? p.toFixed(3) : 'N/A'; }
+    
+    // Format time left
+    function timeLeft(endDateIso) {
+      if (!endDateIso) return 'N/A';
+      const end = new Date(endDateIso).getTime();
+      const now = Date.now();
+      const diff = end - now;
+      if (diff <= 0) return 'Expirado';
+      const days = Math.ceil(diff / (1000*60*60*24));
+      const hours = Math.floor(diff / (1000*60*60));
+      if (days > 30) return `${Math.round(days/30)}m`;
+      if (days > 0) return `${days}d ${hours}h`;
+      return `${hours}h`;
+    }
+    
+    // Market URL
+    function marketUrl(market) {
+      const id = market.id || market.marketId;
+      return `https://polymarket.com/market/${id}`;
+    }
+    
+    // Fetch markets
+    async function fetchMarkets() {
+      try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        let data = JSON.parse(text);
+        const markets = Array.isArray(data) ? data : (data.markets || data.data || []);
+        return markets.filter(m => m.active !== false && m.closed !== true);
+      } catch (e) {
+        console.error('Fetch error:', e);
+        return [];
+      }
+    }
+    
+    // Main render
+    function render(markets) {
+      const minGap = parseFloat(document.getElementById('min-gap').value) || 2;
+      const minVolume = parseFloat(document.getElementById('min-volume').value) || 0;
+      const timeFilter = document.getElementById('time-filter').value;
+      
+      // Parse and filter
+      const opportunities = [];
+      for (const m of markets) {
+        const prices = parsePrices(m);
+        if (!prices) continue;
+        
+        // Volume filter
+        const volume = parseFloat(m.volume) || 0;
+        if (volume < minVolume) continue;
+        
+        // Time filter
+        if (timeFilter !== 'all') {
+          const now = Date.now();
+          const end = new Date(m.endDateIso || m.endDate).getTime();
+          const hoursLeft = (end - now) / (1000*60*60);
+          if (timeFilter === '24h' && hoursLeft > 24) continue;
+          if (timeFilter === '7d' && hoursLeft > 7*24) continue;
+          if (timeFilter === '30d' && hoursLeft > 30*24) continue;
+        }
+        
+        const gap = calculateGap(prices);
+        if (gap < minGap) continue; // Only show significant mispricing
+        
+        const signal = getArbSignal(prices, gap);
+        
+        opportunities.push({
+          id: m.id,
+          question: m.question || 'Sem título',
+          prices,
+          gap,
+          volume,
+          timeLeft: timeLeft(m.endDateIso || m.endDate),
+          signal,
+          url: marketUrl(m),
+          liquidity: parseFloat(m.liquidity) || 0
+        });
+      }
+      
+      // Sort by gap descending (biggest opportunity first)
+      opportunities.sort((a, b) => b.gap - a.gap);
+      
+      // Update stats
+      updateStats(opportunities, markets);
+      
+      // Render cards (top 6)
+      const cardsContainer = document.getElementById('cards');
+      cardsContainer.innerHTML = opportunities.slice(0, 6).map(opp => createCard(opp)).join('');
+      
+      // Render table (all)
+      const tableBody = document.getElementById('table-body');
+      tableBody.innerHTML = opportunities.map(opp => createTableRow(opp)).join('');
+    }
+    
+    function updateStats(opportunities, allMarkets) {
+      document.getElementById('total-markets').textContent = allMarkets.length;
+      document.getElementById('total-arb').textContent = opportunities.length;
+      
+      const avgGap = opportunities.length > 0 
+        ? (opportunities.reduce((sum, o) => sum + o.gap, 0) / opportunities.length).toFixed(2) + '%'
+        : '0%';
+      document.getElementById('avg-gap').textContent = avgGap;
+      
+      const bestGap = opportunities.length > 0 
+        ? opportunities[0].gap.toFixed(2) + '%'
+        : '0%';
+      document.getElementById('best-arb').textContent = bestGap;
+    }
+    
+    function createCard(opp) {
+      const colorClass = opp.prices.total < 1 ? 'text-green' : 'text-red';
+      const gapClass = opp.gap > 5 ? 'text-purple' : opp.gap > 3 ? 'text-yellow' : 'text-gray-400';
+      
+      return `
+        <div class="card">
+          <div class="flex justify-between items-start mb-3">
+            <h3 class="text-lg font-bold text-white flex-1 mr-2 line-clamp-2">${opp.question}</h3>
+            <span class="badge ${opp.signal.class}">${opp.signal.label}</span>
+          </div>
+          <div class="grid grid-cols-3 gap-4 mb-4">
+            <div class="text-center">
+              <div class="text-gray-400 text-xs uppercase">YES</div>
+              <div class="text-2xl font-bold ${opp.prices.yes < 0.5 ? 'text-green' : 'text-red'}">${fmt(opp.prices.yes)}</div>
+            </div>
+            <div class="text-center">
+              <div class="text-gray-400 text-xs uppercase">NO</div>
+              <div class="text-2xl font-bold ${opp.prices.no < 0.5 ? 'text-green' : 'text-red'}">${fmt(opp.prices.no)}</div>
+            </div>
+            <div class="text-center">
+              <div class="text-gray-400 text-xs uppercase">Total</div>
+              <div class="text-2xl font-bold ${colorClass}">${fmt(opp.prices.total)}</div>
+            </div>
+          </div>
+          <div class="arb-line"></div>
+          <div class="flex justify-between text-sm mb-4">
+            <span class="text-gray-400">Gap:</span>
+            <span class="font-bold ${gapClass}">${opp.gap.toFixed(2)}%</span>
+          </div>
+          <div class="flex justify-between text-sm mb-4">
+            <span class="text-gray-400">Volume:</span>
+            <span class="text-white">$${(opp.volume/1000).toFixed(1)}k</span>
+          </div>
+          <div class="flex justify-between text-sm mb-4">
+            <span class="text-gray-400">Tempo restante:</span>
+            <span class="text-yellow">${opp.timeLeft}</span>
+          </div>
+          <div class="text-xs text-gray-500 mb-4 p-2 bg-gray-900 rounded">
+            <strong>Estratégia:</strong> ${opp.signal.reason}<br>
+            <strong>Ação:</strong> ${opp.signal.action}
+          </div>
+          <a href="${opp.url}" target="_blank" class="block w-full text-center py-2 bg-purple-600 hover:bg-purple-700 text-white rounded transition">Abrir no Polymarket</a>
+        </div>
+      `;
+    }
+    
+    function createTableRow(opp) {
+      const colorClass = opp.prices.total < 1 ? 'text-green' : 'text-red';
+      const gapClass = opp.gap > 5 ? 'text-purple' : opp.gap > 3 ? 'text-yellow' : 'text-gray-400';
+      
+      return `
+        <tr class="border-b border-gray-800 hover:bg-gray-900">
+          <td class="py-3 px-4 text-white max-w-md line-clamp-2">${opp.question}</td>
+          <td class="py-3 px-4 text-right font-mono ${opp.prices.yes < 0.5 ? 'text-green' : 'text-red'}">${fmt(opp.prices.yes)}</td>
+          <td class="py-3 px-4 text-right font-mono ${opp.prices.no < 0.5 ? 'text-green' : 'text-red'}">${fmt(opp.prices.no)}</td>
+          <td class="py-3 px-4 text-right font-bold ${colorClass}">${fmt(opp.prices.total)}</td>
+          <td class="py-3 px-4 text-right ${gapClass}">${opp.gap.toFixed(2)}%</td>
+          <td class="py-3 px-4 text-right">$${(opp.volume/1000).toFixed(1)}k</td>
+          <td class="py-3 px-4 text-center"><span class="badge ${opp.signal.class} text-xs">${opp.signal.label}</span></td>
+          <td class="py-3 px-4"><a href="${opp.url}" target="_blank" class="text-purple-400 hover:underline">Abrir</a></td>
+        </tr>
+      `;
+    }
+    
+    function applyFilters() {
+      // Just trigger reload on next interval
+      document.getElementById('status').textContent = '🔄 Aplicando filtros...';
+      setTimeout(() => loadData(), 500);
+    }
+    
+    async function loadData() {
+      const markets = await fetchMarkets();
+      render(markets);
+      document.getElementById('status').textContent = `✅ ${new Date().toLocaleTimeString('pt-BR')} | Próxima em 15s`;
+    }
+    
+    // Initial load
+    loadData();
+    // Refresh every 15 seconds
+    setInterval(loadData, 15000);
+  </script>
+</body>
+</html>
