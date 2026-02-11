@@ -85,17 +85,17 @@ Aqui,ammings existiria comprando **ambas** as posições a 0.45+0.50=0.95 e vend
 
 ### Estratégia de Trading
 
-**Cenário 1: Total < 1.0 (ex: 0.95)**
+**Cenário 1: Total < 1.0 (ex: 0.995)**
 - Comprar **YES** e **NO** simultaneamente
 - Cortar automaticamente quando o total retornar a ~1.00
-- Lucro esperado: `(1.00 - total) / total` ≈ 5.26% no exemplo
+- Lucro esperado: `(1.00 - total) / total` ≈ 0.5% no exemplo (0.995 → 1.00)
 
-**Cenário 2: Total > 1.0 (ex: 1.05)**
+**Cenário 2: Total > 1.0 (ex: 1.005)**
 - Vender **YES** e **NO** (short both)
 - Comprar de volta quando total = 1.00
-- Lucro esperado: `(total - 1.00) / total` ≈ 4.76% no exemplo
+- Lucro esperado: `(total - 1.00) / total` ≈ 0.5% no exemplo (1.005 → 1.00)
 
-⚠️ **Aviso:** Esta lógica teórica. Na prática, fees, spreads e latency comem parte do lucro.
+⚠️ **Aviso:** Esta lógica teórica. Na prática, fees, spreads e latency comem parte do lucro. Gaps muito pequenos (<0.5%) podem não valer a pena.
 
 ---
 
@@ -103,13 +103,13 @@ Aqui,ammings existiria comprando **ambas** as posições a 0.45+0.50=0.95 e vend
 
 | Filtro | Descrição | Padrão |
 |--------|-----------|--------|
-| **Gap Mínimo** | % mínimo de desvio para aparecer | 2% |
-| **Volume Mínimo** | Volume USD mínimo | $10,000 |
+| **Gap Mínimo** | % mínimo de desvio para aparecer | 0.1% (captura até desvios mínimos) |
+| **Volume Mínimo** | Volume USD mínimo | $0 (mostra todos) |
 | **Tempo Restante** | Filtro de duração | Todos |
 
 Ajuste os filtros no topo do dashboard para focar em:
-- **Gap alto**: Oportunidades maiores (mais raras)
-- **Volume alto**: Mais liquidez (fácil entrada/saída)
+- **Gap alto**: Oportunidades maiores (mais raras) - aumentar para 1%, 2%, 5%
+- **Volume alto**: Mais liquidez (fácil entrada/saída) - aumentar para $10k, $50k, $100k
 - **Tempo curto**: Mercados que expiram em breve (mais urgente)
 
 ---
