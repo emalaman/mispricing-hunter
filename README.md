@@ -99,6 +99,37 @@ Aqui,ammings existiria comprando **ambas** as posições a 0.45+0.50=0.95 e vend
 
 ---
 
+## 📊 Gráficos em Tempo Real
+
+O dashboard inclui **3 visualizações** para entender o mercado:
+
+### 1️⃣ Distribuição de Gaps (Histograma)
+**Onde:** Topo, após os stats  
+**Mostra:** Quantos mercados têm cada faixa de gap (0-0.5%, 0.5-1%, 1-2%, 2-5%, 5-10%, 10%+)  
+**Interpretação:** Veja se a maioria dos gaps é pequena (<1%) ou se há muitos grandes (>5%)
+
+### 2️⃣ Proporção de Mercados (Pie Chart)
+**Onde:** Ao lado do histograma  
+**Mostra:** 
+- 🟢 **Subprecificados** (total < 0.995) → sinal COMPRAR AMBAS
+- ⚪ **Equilibrados** (0.995-1.005) → sem sinal
+- 🔴 **Sobreprecificados** (total > 1.005) → sinal VENDER AMBAS
+
+**Interpretação:** Se o setor verde for grande, há muitas oportunidades de compra. Se o vermelho dominar, os preços estão altos (cuidado).
+
+### 3️⃣ Gap vs Volume (Scatter/Bubble)
+**Onde:** Seção separada após filtros  
+**Mostra:** Cada ponto é um mercado:
+- **Eixo X:** Gap (%) - mais à direita = maior desvio
+- **Eixo Y:** Volume (USD) - mais acima = mais negociado
+- **Tamanho da bolha:** Volume (bolhas maiores = mais liquidez)
+
+**Interpretação:** 
+- Bolhas grandes à direita = **grandes gaps em mercados líquidos** → ótimas oportunidades
+- Bolhas pequenas à esquerda = gaps pequenos em mercados ilíquidos → ignorar
+
+---
+
 ## 🎛️ Filtros
 
 | Filtro | Descrição | Padrão |

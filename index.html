@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🕵️ Polymarket Mispricing Hunter</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', sans-serif; }
     .card { background: #121212; border: 1px solid #333; border-radius: 0.75rem; padding: 1.5rem; transition: all .2s; }
@@ -49,6 +50,25 @@
         <div class="text-gray-400 text-xs uppercase">Melhor Oportunidade</div>
         <div class="stat-value text-purple" id="best-arb">0%</div>
       </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div class="card">
+        <h3 class="text-lg font-bold text-white mb-4">📊 Distribuição de Gaps</h3>
+        <canvas id="histogramChart" height="200"></canvas>
+      </div>
+      <div class="card">
+        <h3 class="text-lg font-bold text-white mb-4">🥧 Proporção de Mercados</h3>
+        <canvas id="pieChart" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- Scatter: Gap vs Volume -->
+    <div class="card mb-8">
+      <h3 class="text-xl font-bold text-white mb-4">📈 Gap (%) vs Volume (USD)</h3>
+      <p class="text-gray-400 text-sm mb-4">Cada ponto = um mercado. Bolhas maiores = maior volume.</p>
+      <canvas id="scatterChart" height="150"></canvas>
     </div>
 
     <!-- Filters -->
@@ -250,6 +270,9 @@
       // Render table (all)
       const tableBody = document.getElementById('table-body');
       tableBody.innerHTML = opportunities.map(opp => createTableRow(opp)).join('');
+      
+      // Render charts
+      renderCharts(opportunities);
     }
     
     function updateStats(opportunities, allMarkets) {
@@ -331,8 +354,123 @@
       `;
     }
     
+    // Chart instances
+    let histChart = null, pieChart = null, scatterChart = null;
+    
+    function renderCharts(opportunities) {
+      // Destroy previous charts
+      [histChart, pieChart, scatterChart].forEach(ch => { if (ch) ch.destroy(); });
+      
+      // 1️⃣ Histograma de gaps
+      const bins = [0, 0.5, 1, 2, 5, 10, 20];
+      const binLabels = ['0-0.5%', '0.5-1%', '1-2%', '2-5%', '5-10%', '10%+'];
+      const counts = bins.slice(0, -1).map((min, i) => {
+        const max = bins[i+1];
+        return opportunities.filter(o => o.gap >= min && o.gap < max).length;
+      });
+      // Adiciona overflow (gap >= 20%) ao último bin
+      counts[counts.length-1] += opportunities.filter(o => o.gap >= 20).length;
+      
+      const histCtx = document.getElementById('histogramChart').getContext('2d');
+      histChart = new Chart(histCtx, {
+        type: 'bar',
+        data: {
+          labels: binLabels,
+          datasets: [{
+            label: 'Nº de Mercados',
+            data: counts,
+            backgroundColor: 'rgba(124, 58, 237, 0.6)',
+            borderColor: 'rgba(124, 58, 237, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { 
+              beginAtZero: true, 
+              ticks: { color: '#9ca3af' }, 
+              grid: { color: 'rgba(255,255,255,0.1)' } 
+            },
+            x: { 
+              ticks: { color: '#9ca3af' }, 
+              grid: { color: 'rgba(255,255,255,0.1)' } 
+            }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+      
+      // 2️⃣ Pizza: Underpriced vs Balanced vs Overpriced
+      const under = opportunities.filter(o => o.prices.total < 0.995).length;
+      const over = opportunities.filter(o => o.prices.total > 1.005).length;
+      const balanced = opportunities.filter(o => o.prices.total >= 0.995 && o.prices.total <= 1.005).length;
+      
+      const pieCtx = document.getElementById('pieChart').getContext('2d');
+      pieChart = new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+          labels: ['Subprecificados (<0.995)', 'Equilibrados', 'Sobreprecificados (>1.005)'],
+          datasets: [{
+            data: [under, balanced, over],
+            backgroundColor: ['rgba(34, 197, 94, 0.7)', 'rgba(156, 163, 175, 0.7)', 'rgba(239, 68, 68, 0.7)'],
+            borderColor: ['#22c55e', '#9ca3af', '#ef4444'],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#e5e5e5' } }
+          }
+        }
+      });
+      
+      // 3️⃣ Scatter: Gap vs Volume
+      const scatterCtx = document.getElementById('scatterChart').getContext('2d');
+      const scatterData = opportunities.map(o => ({
+        x: o.gap,
+        y: o.volume,
+        r: Math.max(3, Math.log10(o.volume + 1) * 2) // radius based on log volume
+      }));
+      
+      scatterChart = new Chart(scatterCtx, {
+        type: 'bubble',
+        data: {
+          datasets: [{
+            label: 'Mercados',
+            data: scatterData,
+            backgroundColor: 'rgba(125, 211, 252, 0.6)',
+            borderColor: 'rgba(125, 211, 252, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              title: { display: true, text: 'Gap (%)', color: '#9ca3af' },
+              ticks: { color: '#9ca3af' },
+              grid: { color: 'rgba(255,255,255,0.1)' }
+            },
+            y: {
+              title: { display: true, text: 'Volume (USD)', color: '#9ca3af' },
+              ticks: { 
+                color: '#9ca3af',
+                callback: function(value) { return '$' + (value/1000).toFixed(0) + 'k'; }
+              },
+              grid: { color: 'rgba(255,255,255,0.1)' }
+            }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+    
     function applyFilters() {
-      // Just trigger reload on next interval
       document.getElementById('status').textContent = '🔄 Aplicando filtros...';
       setTimeout(() => loadData(), 500);
     }
